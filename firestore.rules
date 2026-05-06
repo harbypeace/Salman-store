@@ -1,0 +1,82 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { 
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    function isAdmin() { 
+      return isSignedIn() && 
+        (request.auth.token.email == 'halmontaser1@gmail.com' || exists(/databases/$(database)/documents/userRoles/$(request.auth.uid))); 
+    }
+
+    match /products/{productId} {
+      function isValidProduct(data) {
+        return data.keys().hasAll(['name', 'price', 'createdAt', 'updatedAt']) &&
+          data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+          data.price is number && data.price >= 0 &&
+          (true) && // Allowing optional fields for simplicity here or enforce them?
+          // Let's enforce the exact fields
+          (data.keys().hasOnly(['name', 'description', 'price', 'imageUrl', 'category', 'inStock', 'createdAt', 'updatedAt'])) &&
+          (data.get('description', '') is string && data.get('description', '').size() <= 2000) &&
+          (data.get('imageUrl', '') is string && data.get('imageUrl', '').size() <= 600000) &&
+          (data.get('category', '') is string && data.get('category', '').size() <= 100) &&
+          (data.get('inStock', true) is bool);
+      }
+
+      allow list: if true;
+      allow get: if isValidId(productId);
+      
+      allow create: if isAdmin() &&
+        isValidId(productId) &&
+        isValidProduct(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+        
+      allow update: if isAdmin() &&
+        isValidId(productId) &&
+        isValidProduct(incoming()) &&
+        incoming().diff(existing()).affectedKeys().hasAny(['name', 'description', 'price', 'imageUrl', 'category', 'inStock', 'updatedAt']) &&
+        incoming().updatedAt == request.time &&
+        incoming().createdAt == existing().createdAt;
+        
+      allow delete: if isAdmin() && isValidId(productId);
+    }
+
+    match /users/{userId}/wishlist/{productId} {
+      function isValidWishlistItem(data) {
+        return data.keys().hasAll(['productId', 'addedAt']) &&
+          data.keys().hasOnly(['productId', 'addedAt']) &&
+          data.productId is string && data.productId.size() > 0 && data.productId.size() <= 128 &&
+          data.addedAt is timestamp;
+      }
+
+      allow list: if isSignedIn() && userId == request.auth.uid;
+      allow get: if isSignedIn() && userId == request.auth.uid && isValidId(userId) && isValidId(productId);
+      
+      allow create: if isSignedIn() && 
+        userId == request.auth.uid &&
+        isValidId(userId) &&
+        isValidId(productId) &&
+        isValidWishlistItem(incoming()) &&
+        incoming().productId == productId &&
+        incoming().addedAt == request.time &&
+        exists(/databases/$(database)/documents/products/$(productId));
+        
+      allow delete: if isSignedIn() && 
+        userId == request.auth.uid &&
+        isValidId(userId) &&
+        isValidId(productId);
+    }
+    
+    match /userRoles/{userId} {
+      allow get: if isSignedIn() && userId == request.auth.uid && isValidId(userId);
+    }
+  }
+}
