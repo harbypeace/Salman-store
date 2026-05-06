@@ -3,8 +3,9 @@ import { useParams, Link } from "react-router-dom";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { doc, getDoc, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
 import { Product } from "../types";
-import { Heart, MessageCircle, ArrowLeft, Truck, Banknote } from "lucide-react";
+import { Heart, MessageCircle, ArrowLeft, Truck, Banknote, ShoppingCart } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import { useCart } from "../contexts/CartContext";
 
 export function ProductDetails() {
   const { id } = useParams<{ id: string }>();
@@ -12,6 +13,7 @@ export function ProductDetails() {
   const [loading, setLoading] = useState(true);
   const [inWishlist, setInWishlist] = useState(false);
   const { user, signInWithGoogle } = useAuth();
+  const { addToCart } = useCart();
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -89,7 +91,8 @@ export function ProductDetails() {
 
   const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
   const message = `مرحباً، أود طلب المنتج: ${product.name}\n(السعر: ${product.price.toLocaleString()} ريال يمني)\nالرابط: ${currentUrl}`;
-  const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+  const whatsappNumber = import.meta.env.VITE_WHATSAPP_NUMBER || '';
+  const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -136,6 +139,14 @@ export function ProductDetails() {
           </div>
 
           <div className="mt-10 flex flex-col sm:flex-row gap-4">
+            <button
+              onClick={() => addToCart(product)}
+              disabled={!product.inStock}
+              className="flex max-w-xs flex-1 items-center justify-center space-x-2 rounded-xl border border-transparent bg-green-600 px-8 py-4 text-base font-medium text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 sm:w-full disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              <ShoppingCart className="h-6 w-6" />
+              <span>Add to Cart</span>
+            </button>
             <a
               href={whatsappUrl}
               target="_blank"
@@ -143,7 +154,7 @@ export function ProductDetails() {
               className="flex max-w-xs flex-1 items-center justify-center space-x-2 rounded-xl border border-transparent bg-[#25D366] px-8 py-4 text-base font-medium text-white shadow-sm hover:bg-[#128C7E] focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:ring-offset-2 sm:w-full"
             >
               <MessageCircle className="h-6 w-6" />
-              <span>طلب عبر واتساب (Order via WhatsApp)</span>
+              <span>WhatsApp</span>
             </a>
 
             <button

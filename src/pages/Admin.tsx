@@ -3,16 +3,20 @@ import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, query, orderBy, writeBatch } from "firebase/firestore";
 import { Product } from "../types";
 import { useAuth } from "../contexts/AuthContext";
-import { Plus, Edit2, Trash2, Sparkles, Download, CheckCircle2, XCircle } from "lucide-react";
+import { Plus, Edit2, Trash2, Sparkles, Download, CheckCircle2, XCircle, Package, Store } from "lucide-react";
 import { GoogleGenAI } from "@google/genai";
+import { AdminOrders } from "./AdminOrders";
 
 export function Admin() {
   const { isAdmin } = useAuth();
+  const [activeTab, setActiveTab] = useState<'products' | 'orders'>('products');
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkCategoryStr, setBulkCategoryStr] = useState("");
+  const [bulkDiscountStr, setBulkDiscountStr] = useState("");
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [imageAspectRatio, setImageAspectRatio] = useState<"1:1" | "16:9" | "4:3">("1:1");
   const [filterStock, setFilterStock] = useState<string>("all");
@@ -245,44 +249,62 @@ export function Admin() {
     setSelectedIds(newSet);
   };
 
-  const handleBulkAction = async (action: 'in-stock' | 'out-of-stock' | 'category') => {
+  const handleBulkAction = async (action: 'in-stock' | 'out-of-stock' | 'category' | 'discount') => {
     if (!isAdmin || selectedIds.size === 0) return;
     
+    setIsBulkLoading(true);
     try {
       const batch = writeBatch(db);
       selectedIds.forEach(id => {
         const ref = doc(db, "products", id);
+        const p = products.find(prod => prod.id === id);
+        
         if (action === 'in-stock') {
           batch.update(ref, { inStock: true, updatedAt: serverTimestamp() });
         } else if (action === 'out-of-stock') {
           batch.update(ref, { inStock: false, updatedAt: serverTimestamp() });
         } else if (action === 'category' && bulkCategoryStr) {
           batch.update(ref, { category: bulkCategoryStr, updatedAt: serverTimestamp() });
+        } else if (action === 'discount' && bulkDiscountStr && p) {
+          const discountPercent = parseFloat(bulkDiscountStr);
+          if (!isNaN(discountPercent) && discountPercent > 0 && discountPercent <= 100) {
+            const newPrice = p.price * (1 - (discountPercent / 100));
+            batch.update(ref, { price: Math.round(newPrice), updatedAt: serverTimestamp() });
+          }
         }
       });
       await batch.commit();
 
       setProducts(products.map(p => {
         if (selectedIds.has(p.id!)) {
-          return {
-            ...p,
-            ...(action === 'in-stock' ? { inStock: true } : {}),
-            ...(action === 'out-of-stock' ? { inStock: false } : {}),
-            ...(action === 'category' && bulkCategoryStr ? { category: bulkCategoryStr } : {})
-          };
+          let updatedFields: Partial<Product> = {};
+          if (action === 'in-stock') updatedFields.inStock = true;
+          if (action === 'out-of-stock') updatedFields.inStock = false;
+          if (action === 'category' && bulkCategoryStr) updatedFields.category = bulkCategoryStr;
+          if (action === 'discount' && bulkDiscountStr) {
+            const discountPercent = parseFloat(bulkDiscountStr);
+            if (!isNaN(discountPercent) && discountPercent > 0 && discountPercent <= 100) {
+              updatedFields.price = Math.round(p.price * (1 - (discountPercent / 100)));
+            }
+          }
+          return { ...p, ...updatedFields };
         }
         return p;
       }));
       
       setSelectedIds(new Set());
       setBulkCategoryStr("");
+      setBulkDiscountStr("");
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, "products");
+    } finally {
+      setIsBulkLoading(false);
     }
   };
 
   const handleBulkDelete = async () => {
     if (!isAdmin || selectedIds.size === 0) return;
+    setIsBulkLoading(true);
     try {
       const batch = writeBatch(db);
       selectedIds.forEach(id => {
@@ -294,6 +316,8 @@ export function Admin() {
       setSelectedIds(new Set());
     } catch(error) {
       handleFirestoreError(error, OperationType.DELETE, "products");
+    } finally {
+      setIsBulkLoading(false);
     }
   };
 
@@ -444,7 +468,37 @@ export function Admin() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+      <div className="mb-8 border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+          <button
+            onClick={() => setActiveTab('products')}
+            className={`${
+              activeTab === 'products'
+                ? 'border-green-500 text-green-600'
+                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+            } flex items-center whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium`}
+          >
+            <Store className="mr-2 h-5 w-5" />
+            Products
+          </button>
+          <button
+            onClick={() => setActiveTab('orders')}
+            className={`${
+              activeTab === 'orders'
+                ? 'border-green-500 text-green-600'
+                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+            } flex items-center whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium`}
+          >
+            <Package className="mr-2 h-5 w-5" />
+            Orders
+          </button>
+        </nav>
+      </div>
+
+      {activeTab === 'orders' ? (
+        <AdminOrders />
+      ) : (
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
         
         {/* Form */}
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -601,32 +655,64 @@ export function Admin() {
               {selectedIds.size > 0 && (
                 <div className="flex flex-wrap items-center gap-4 border-b border-gray-200 bg-green-50 px-6 py-3">
                   <span className="text-sm font-medium text-green-800">{selectedIds.size} selected</span>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button onClick={() => handleBulkAction('in-stock')} className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-green-500">In Stock</button>
-                    <button onClick={() => handleBulkAction('out-of-stock')} className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-green-500">Out of Stock</button>
-                    <button onClick={() => {
-                        if (window.confirm("Delete selected products?")) handleBulkDelete();
-                      }} 
-                      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm hover:bg-red-50 focus:outline-none focus:ring-1 focus:ring-red-500">
-                      Delete
-                    </button>
-                    
-                    <div className="ml-2 flex items-center space-x-2 border-l border-gray-300 pl-4">
-                      <input 
-                        type="text" 
-                        placeholder="New Category" 
-                        value={bulkCategoryStr} 
-                        onChange={e => setBulkCategoryStr(e.target.value)} 
-                        className="w-32 rounded-md border border-gray-300 px-2 py-1 text-xs focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500" 
-                      />
-                      <button 
-                        onClick={() => handleBulkAction('category')} 
-                        disabled={!bulkCategoryStr.trim()} 
-                        className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-green-700 disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-green-500">
-                        Update
-                      </button>
+                  
+                  {isBulkLoading ? (
+                    <div className="flex items-center text-sm text-green-700 italic">
+                      <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-green-700 mr-2"></div>
+                      Processing bulk action...
                     </div>
-                  </div>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button onClick={() => handleBulkAction('in-stock')} disabled={isBulkLoading} className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-green-500">In Stock</button>
+                      <button onClick={() => handleBulkAction('out-of-stock')} disabled={isBulkLoading} className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-green-500">Out of Stock</button>
+                      <button onClick={() => {
+                          if (window.confirm("Delete selected products?")) handleBulkDelete();
+                        }} 
+                        disabled={isBulkLoading}
+                        className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm hover:bg-red-50 disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-red-500">
+                        Delete
+                      </button>
+                      
+                      <div className="ml-2 flex items-center space-x-2 border-l border-gray-300 pl-4">
+                        <input 
+                          type="text" 
+                          placeholder="New Category" 
+                          value={bulkCategoryStr} 
+                          onChange={e => setBulkCategoryStr(e.target.value)} 
+                          disabled={isBulkLoading}
+                          className="w-32 rounded-md border border-gray-300 px-2 py-1 text-xs disabled:opacity-50 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500" 
+                        />
+                        <button 
+                          onClick={() => handleBulkAction('category')} 
+                          disabled={!bulkCategoryStr.trim() || isBulkLoading} 
+                          className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-green-700 disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-green-500">
+                          Update
+                        </button>
+                      </div>
+
+                      <div className="ml-2 flex items-center space-x-2 border-l border-gray-300 pl-4">
+                        <div className="relative">
+                          <input 
+                            type="number" 
+                            min="1"
+                            max="100"
+                            placeholder="Discount" 
+                            value={bulkDiscountStr} 
+                            onChange={e => setBulkDiscountStr(e.target.value)} 
+                            disabled={isBulkLoading}
+                            className="w-24 rounded-md border border-gray-300 pl-2 pr-6 py-1 text-xs disabled:opacity-50 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500" 
+                          />
+                          <span className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-xs text-gray-400">%</span>
+                        </div>
+                        <button 
+                          onClick={() => handleBulkAction('discount')} 
+                          disabled={!bulkDiscountStr.trim() || isBulkLoading} 
+                          className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-green-700 disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-green-500">
+                          Apply
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               <table className="min-w-full divide-y divide-gray-200">
@@ -697,7 +783,8 @@ export function Admin() {
             </div>
           )}
         </div>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -34,6 +34,42 @@
         "isAdmin": { "type": "boolean" }
       },
       "required": ["isAdmin"]
+    },
+    "OrderItem": {
+      "title": "OrderItem",
+      "description": "Item in an order",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "quantity": { "type": "number" },
+        "imageUrl": { "type": "string" }
+      },
+      "required": ["productId", "name", "price", "quantity"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer order",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerEmail": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "shippingAddress": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "processing", "shipped", "delivered", "cancelled"] },
+        "trackingNumber": { "type": "string" },
+        "shippingCarrier": { "type": "string" },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/entities/OrderItem" }
+        },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["customerName", "customerEmail", "customerPhone", "shippingAddress", "totalAmount", "status", "items", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -48,6 +84,10 @@
     "/userRoles/{userId}": {
       "schema": { "$ref": "#/entities/UserRole" },
       "description": "Role assignments"
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "All customer orders"
     }
   }
 }

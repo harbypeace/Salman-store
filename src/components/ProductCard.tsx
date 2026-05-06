@@ -53,7 +53,8 @@ export function ProductCard({ product }: { product: Product }) {
 
   const currentUrl = typeof window !== 'undefined' ? window.location.origin : '';
   const message = `مرحباً، أود الاستفسار عن المنتج: ${product.name}\n(السعر: ${product.price.toLocaleString()} ريال يمني)\nالرابط: ${currentUrl}/product/${product.id}`;
-  const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+  const whatsappNumber = import.meta.env.VITE_WHATSAPP_NUMBER || '';
+  const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
 
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all hover:shadow-md">
