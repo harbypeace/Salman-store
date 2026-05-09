@@ -1,5 +1,18 @@
 {
   "entities": {
+    "ProductVariant": {
+      "title": "ProductVariant",
+      "description": "Variant of a product",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "stockQuantity": { "type": "number" },
+        "inStock": { "type": "boolean" }
+      },
+      "required": ["id", "name", "price", "stockQuantity", "inStock"]
+    },
     "Product": {
       "title": "Product",
       "description": "A product in the store",
@@ -11,6 +24,11 @@
         "imageUrl": { "type": "string" },
         "category": { "type": "string" },
         "inStock": { "type": "boolean" },
+        "stockQuantity": { "type": "number" },
+        "variants": {
+          "type": "array",
+          "items": { "$ref": "#/entities/ProductVariant" }
+        },
         "createdAt": { "type": "number" },
         "updatedAt": { "type": "number" }
       },

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, query, orderBy, writeBatch } from "firebase/firestore";
-import { Product } from "../types";
+import { Product, ProductVariant } from "../types";
 import { useAuth } from "../contexts/AuthContext";
 import { Plus, Edit2, Trash2, Sparkles, Download, CheckCircle2, XCircle, Package, Store } from "lucide-react";
 import { GoogleGenAI } from "@google/genai";
@@ -29,7 +29,9 @@ export function Admin() {
     price: 0,
     imageUrl: "",
     category: "",
-    inStock: true
+    inStock: true,
+    stockQuantity: 0,
+    variants: [] as ProductVariant[]
   });
 
   useEffect(() => {
@@ -75,7 +77,7 @@ export function Admin() {
       const snapshot = await getDocs(query(collection(db, "products"), orderBy("createdAt", "desc")));
       setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
       
-      setFormData({ name: "", description: "", price: 0, imageUrl: "", category: "", inStock: true });
+      setFormData({ name: "", description: "", price: 0, imageUrl: "", category: "", inStock: true, stockQuantity: 0, variants: [] });
       setEditingId(null);
     } catch (error) {
       const type = editingId ? OperationType.UPDATE : OperationType.CREATE;
@@ -90,9 +92,30 @@ export function Admin() {
       price: p.price,
       imageUrl: p.imageUrl,
       category: p.category,
-      inStock: p.inStock
+      inStock: p.inStock,
+      stockQuantity: p.stockQuantity || 0,
+      variants: p.variants || []
     });
     setEditingId(p.id!);
+  };
+
+  const handleAddVariant = () => {
+    setFormData({
+      ...formData,
+      variants: [...formData.variants, { id: Date.now().toString(), name: '', price: 0, stockQuantity: 0, inStock: true }]
+    });
+  };
+
+  const handleUpdateVariant = (index: number, field: keyof ProductVariant, value: string | number | boolean) => {
+    const updatedVariants = [...formData.variants];
+    updatedVariants[index] = { ...updatedVariants[index], [field]: value };
+    setFormData({ ...formData, variants: updatedVariants });
+  };
+
+  const handleRemoveVariant = (index: number) => {
+    const updatedVariants = [...formData.variants];
+    updatedVariants.splice(index, 1);
+    setFormData({ ...formData, variants: updatedVariants });
   };
 
   const handleDelete = async (id: string) => {
@@ -324,7 +347,7 @@ export function Admin() {
   const handleExportCSV = () => {
     if (filteredProducts.length === 0) return;
 
-    const headers = ['ID', 'Name', 'Description', 'Price', 'Category', 'In Stock', 'Image URL'];
+    const headers = ['ID', 'Name', 'Description', 'Price', 'Category', 'In Stock', 'Stock Quantity', 'Image URL'];
     
     const escapeCSV = (str: string | number | boolean | undefined) => {
       if (str === null || str === undefined) return '""';
@@ -341,6 +364,7 @@ export function Admin() {
         escapeCSV(p.price),
         escapeCSV(p.category),
         escapeCSV(p.inStock ? 'Yes' : 'No'),
+        escapeCSV(p.stockQuantity),
         escapeCSV(p.imageUrl)
       ].join(','))
     ];
@@ -370,7 +394,8 @@ export function Admin() {
           price: 35000,
           category: "عسل (Honey)",
           imageUrl: "https://images.unsplash.com/photo-1587049352847-4d4b1fbf43ae?q=80&w=600&auto=format&fit=crop",
-          inStock: true
+          inStock: true,
+          stockQuantity: 15
         },
         {
           name: "بن خولاني يمني",
@@ -378,7 +403,8 @@ export function Admin() {
           price: 18000,
           category: "بن (Coffee)",
           imageUrl: "https://images.unsplash.com/photo-1559525839-b184a4d698c7?q=80&w=600&auto=format&fit=crop",
-          inStock: true
+          inStock: true,
+          stockQuantity: 30
         },
         {
           name: "زبيب رازقي يمني",
@@ -386,7 +412,8 @@ export function Admin() {
           price: 8500,
           category: "مكسرات (Nuts & Raisins)",
           imageUrl: "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?q=80&w=600&auto=format&fit=crop",
-          inStock: true
+          inStock: true,
+          stockQuantity: 50
         },
         {
           name: "لوز بلدي يمني",
@@ -394,7 +421,8 @@ export function Admin() {
           price: 12000,
           category: "مكسرات (Nuts & Raisins)",
           imageUrl: "https://images.unsplash.com/photo-1508061253366-f7da158b6d46?q=80&w=600&auto=format&fit=crop",
-          inStock: false
+          inStock: false,
+          stockQuantity: 0
         },
         {
           name: "جنبية صيفانية فاخرة",
@@ -402,7 +430,8 @@ export function Admin() {
           price: 650000,
           category: "تراث (Heritage)",
           imageUrl: "https://images.unsplash.com/photo-1590211244463-547e30737aae?q=80&w=600&auto=format&fit=crop",
-          inStock: true
+          inStock: true,
+          stockQuantity: 2
         },
         {
           name: "عطر ليالي الشرق الأصلي",
@@ -410,7 +439,8 @@ export function Admin() {
           price: 15000,
           category: "عطور (Perfumes)",
           imageUrl: "https://images.unsplash.com/photo-1594035910387-fea47794261f?q=80&w=600&auto=format&fit=crop",
-          inStock: true
+          inStock: true,
+          stockQuantity: 10
         },
         {
           name: "طقم إكسسوارت مطلي بالذهب",
@@ -418,7 +448,8 @@ export function Admin() {
           price: 25000,
           category: "إكسسوارات (Accessories)",
           imageUrl: "https://images.unsplash.com/photo-1599643478524-fb5244502120?q=80&w=600&auto=format&fit=crop",
-          inStock: true
+          inStock: true,
+          stockQuantity: 5
         },
         {
           name: "مخمرية عرائسي فاخرة",
@@ -426,7 +457,8 @@ export function Admin() {
           price: 8000,
           category: "عطور (Perfumes)",
           imageUrl: "https://images.unsplash.com/photo-1616654714467-f2832ce26ef6?q=80&w=600&auto=format&fit=crop",
-          inStock: true
+          inStock: true,
+          stockQuantity: 20
         },
         {
           name: "حقيبة يد نسائية أنيقة",
@@ -434,7 +466,8 @@ export function Admin() {
           price: 18500,
           category: "إكسسوارات (Accessories)",
           imageUrl: "https://images.unsplash.com/photo-1584916201218-f4242ceb4809?q=80&w=600&auto=format&fit=crop",
-          inStock: false
+          inStock: false,
+          stockQuantity: 0
         }
       ];
 
@@ -581,18 +614,105 @@ export function Admin() {
                 </div>
               )}
             </div>
-            <div className="flex items-center">
-              <input type="checkbox" id="inStock"
-                checked={formData.inStock} onChange={e => setFormData({...formData, inStock: e.target.checked})}
-                className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
-              <label htmlFor="inStock" className="ml-2 block text-sm text-gray-900">In Stock</label>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center">
+                <input type="checkbox" id="inStock"
+                  checked={formData.inStock} onChange={e => setFormData({...formData, inStock: e.target.checked})}
+                  className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
+                <label htmlFor="inStock" className="ml-2 block text-sm text-gray-900">In Stock</label>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Stock Quantity</label>
+                <input required type="number" min="0" step="1"
+                  value={formData.stockQuantity} onChange={e => setFormData({...formData, stockQuantity: parseInt(e.target.value) || 0})}
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500" />
+              </div>
             </div>
+
+            {/* Variants Section */}
+            <div className="pt-2 border-t border-gray-200">
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700">Product Variants</label>
+                <button
+                  type="button"
+                  onClick={handleAddVariant}
+                  className="inline-flex items-center space-x-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-green-500"
+                >
+                  <Plus className="h-3 w-3" />
+                  <span>Add Variant</span>
+                </button>
+              </div>
+              
+              {formData.variants.length > 0 ? (
+                <div className="space-y-3">
+                  {formData.variants.map((variant, index) => (
+                    <div key={variant.id} className="grid grid-cols-12 gap-2 items-center bg-gray-50 p-2 rounded-md border border-gray-200">
+                      <div className="col-span-4">
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Size M, Red"
+                          value={variant.name}
+                          onChange={(e) => handleUpdateVariant(index, 'name', e.target.value)}
+                          className="block w-full rounded-md border border-gray-300 px-2 py-1 text-xs focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <input
+                          type="number"
+                          required
+                          min="0"
+                          step="1"
+                          placeholder="Price"
+                          value={variant.price}
+                          onChange={(e) => handleUpdateVariant(index, 'price', parseFloat(e.target.value) || 0)}
+                          className="block w-full rounded-md border border-gray-300 px-2 py-1 text-xs focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <input
+                          type="number"
+                          required
+                          min="0"
+                          step="1"
+                          placeholder="Stock"
+                          value={variant.stockQuantity}
+                          onChange={(e) => handleUpdateVariant(index, 'stockQuantity', parseInt(e.target.value) || 0)}
+                          className="block w-full rounded-md border border-gray-300 px-2 py-1 text-xs focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                        />
+                      </div>
+                      <div className="col-span-1 flex justify-center">
+                        <input
+                          type="checkbox"
+                          checked={variant.inStock}
+                          onChange={(e) => handleUpdateVariant(index, 'inStock', e.target.checked)}
+                          className="h-3 w-3 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                          title="In Stock"
+                        />
+                      </div>
+                      <div className="col-span-1 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveVariant(index)}
+                          className="text-red-500 hover:text-red-700 p-1"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500 italic">No variants added. The product will use base price and stock parameters.</p>
+              )}
+            </div>
+
             <div className="flex space-x-3 pt-4">
               <button type="submit" className="flex-1 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
                 {editingId ? 'Update' : 'Add Product'}
               </button>
               {editingId && (
-                <button type="button" onClick={() => { setEditingId(null); setFormData({ name: "", description: "", price: 0, imageUrl: "", category: "", inStock: true }); }}
+                <button type="button" onClick={() => { setEditingId(null); setFormData({ name: "", description: "", price: 0, imageUrl: "", category: "", inStock: true, stockQuantity: 0, variants: [] }); }}
                   className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                   Cancel
                 </button>
@@ -758,10 +878,20 @@ export function Admin() {
                         <div className="text-sm text-gray-900">{p.price.toLocaleString()} YER</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center space-x-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${p.inStock ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'}`}>
-                          {p.inStock ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
-                          <span>{p.inStock ? 'In Stock' : 'Out of Stock'}</span>
-                        </span>
+                        <div className="flex flex-col space-y-2">
+                          <span className={`inline-flex items-center space-x-1.5 rounded-full px-2.5 py-1 text-xs font-semibold w-max ${p.inStock ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'}`}>
+                            {p.inStock ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
+                            <span>{p.inStock ? 'In Stock' : 'Out of Stock'}</span>
+                          </span>
+                          <span className="text-xs text-gray-500 font-medium ml-1">
+                            Qty: <span className="text-gray-900">{p.stockQuantity !== undefined ? p.stockQuantity : '-'}</span>
+                          </span>
+                          {p.variants && p.variants.length > 0 && (
+                            <span className="text-xs text-indigo-600 font-medium">
+                              {p.variants.length} variant{p.variants.length > 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-right whitespace-nowrap text-sm font-medium">
                         <button onClick={() => handleEdit(p)} className="text-blue-600 hover:text-blue-900 mr-4 inline-flex items-center">

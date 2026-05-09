@@ -1,6 +1,6 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
+import { Resend } from "resend";
 
 async function startServer() {
   const app = express();
@@ -9,6 +9,10 @@ async function startServer() {
   app.use(express.json());
 
   // API routes FIRST
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok" });
+  });
+
   app.post("/api/send-email", async (req, res) => {
     try {
       const { customerName, customerEmail, orderId, items, totalAmount } = req.body;
@@ -30,9 +34,8 @@ async function startServer() {
         </tr>
       `).join('');
 
-      // Send email using Resend via their REST API (using fetch)
-      // Since resend is installed, we can also use their SDK, but fetch is easy too.
-      import("resend").then(async ({ Resend }) => {
+      // Send email using Resend via their REST API
+      try {
         const resend = new Resend(resendApiKey);
         
         const trackingUrl = `https://${req.get('host')}/track-order?id=${orderId}`;
@@ -73,9 +76,9 @@ async function startServer() {
         });
         
         console.log("Email sent successfully", data);
-      }).catch(err => {
+      } catch (err) {
         console.error("Failed to send email via Resend:", err);
-      });
+      }
 
       res.status(200).json({ status: "success" });
     } catch (err) {
@@ -86,6 +89,7 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",

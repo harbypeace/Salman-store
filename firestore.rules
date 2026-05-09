@@ -17,17 +17,33 @@ service cloud.firestore {
     }
 
     match /products/{productId} {
+      function isValidProductVariant(variant) {
+        return variant is map &&
+          variant.keys().hasAll(['id', 'name', 'price', 'stockQuantity', 'inStock']) &&
+          variant.id is string && variant.id.size() <= 128 &&
+          variant.name is string && variant.name.size() <= 200 &&
+          variant.price is number && variant.price >= 0 &&
+          variant.stockQuantity is number && variant.stockQuantity >= 0 &&
+          variant.inStock is bool;
+      }
+      
+      function validateProductVariants(variants) {
+        return variants is list && variants.size() <= 100 && (variants.size() == 0 || isValidProductVariant(variants[0]));
+      }
+
       function isValidProduct(data) {
         return data.keys().hasAll(['name', 'price', 'createdAt', 'updatedAt']) &&
           data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
           data.price is number && data.price >= 0 &&
           (true) && // Allowing optional fields for simplicity here or enforce them?
           // Let's enforce the exact fields
-          (data.keys().hasOnly(['name', 'description', 'price', 'imageUrl', 'category', 'inStock', 'createdAt', 'updatedAt'])) &&
+          (data.keys().hasOnly(['name', 'description', 'price', 'imageUrl', 'category', 'inStock', 'stockQuantity', 'variants', 'createdAt', 'updatedAt'])) &&
           (data.get('description', '') is string && data.get('description', '').size() <= 2000) &&
           (data.get('imageUrl', '') is string && data.get('imageUrl', '').size() <= 600000) &&
           (data.get('category', '') is string && data.get('category', '').size() <= 100) &&
-          (data.get('inStock', true) is bool);
+          (data.get('inStock', true) is bool) &&
+          (data.get('stockQuantity', 0) is number && data.get('stockQuantity', 0) >= 0) &&
+          validateProductVariants(data.get('variants', []));
       }
 
       allow list: if true;
@@ -42,7 +58,7 @@ service cloud.firestore {
       allow update: if isAdmin() &&
         isValidId(productId) &&
         isValidProduct(incoming()) &&
-        incoming().diff(existing()).affectedKeys().hasAny(['name', 'description', 'price', 'imageUrl', 'category', 'inStock', 'updatedAt']) &&
+        incoming().diff(existing()).affectedKeys().hasAny(['name', 'description', 'price', 'imageUrl', 'category', 'inStock', 'stockQuantity', 'variants', 'updatedAt']) &&
         incoming().updatedAt == request.time &&
         incoming().createdAt == existing().createdAt;
         

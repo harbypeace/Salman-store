@@ -1,11 +1,21 @@
+export interface ProductVariant {
+  id: string;
+  name: string;
+  price: number;
+  stockQuantity: number;
+  inStock: boolean;
+}
+
 export interface Product {
   id?: string;
   name: string;
   description: string;
-  price: number;
+  price: number; // Base price
   imageUrl: string;
   category: string;
   inStock: boolean;
+  stockQuantity?: number;
+  variants?: ProductVariant[];
   createdAt?: any;
   updatedAt?: any;
 }
