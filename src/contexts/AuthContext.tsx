@@ -30,7 +30,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        if (currentUser.email === "halmontaser1@gmail.com") {
+        if (currentUser.email === "halmontaser1@gmail.com" || currentUser.email === "samtser8@gmail.com") {
            setIsAdmin(true);
         } else {
             try {

@@ -13,7 +13,7 @@ service cloud.firestore {
     }
     function isAdmin() { 
       return isSignedIn() && 
-        (request.auth.token.email == 'halmontaser1@gmail.com' || exists(/databases/$(database)/documents/userRoles/$(request.auth.uid))); 
+        (request.auth.token.email == 'halmontaser1@gmail.com' || request.auth.token.email == 'samtser8@gmail.com' || exists(/databases/$(database)/documents/userRoles/$(request.auth.uid))); 
     }
 
     match /products/{productId} {
